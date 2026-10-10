@@ -261,8 +261,13 @@ jobs:
     steps:
       - uses: maxim-lobanov/setup-xcode@v1
         with:
-          # Never a beta Xcode: Apple rejects anything built with one.
           xcode-version: latest-stable
+      - name: Refuse a beta Xcode
+        run: |
+          # latest-stable can pick a beta whose version string has no beta tag.
+          dev="$(xcode-select -p)"
+          xcodebuild -version
+          [[ "$dev" != *[Bb]eta* ]] || { echo "::error::beta Xcode selected: $dev"; exit 1; }
       - uses: actions/checkout@v4
         with:
           repository: ${{ env.LUMIERE_REPO }}
@@ -319,8 +324,15 @@ jobs:
     steps:
       - uses: maxim-lobanov/setup-xcode@v1
         with:
-          # Never a beta Xcode: Apple rejects anything built with one (ITMS-90534).
-          xcode-version: latest-stable
+          # Pinned to the dev Mac's Xcode. Not latest-stable: on this image it
+          # selects Xcode_27.1_beta.app, which reports itself as 27.1.0.
+          xcode-version: '27.0'
+      - name: Refuse a beta Xcode
+        run: |
+          # Apple rejects anything built with a beta (ITMS-90534).
+          dev="$(xcode-select -p)"
+          xcodebuild -version
+          [[ "$dev" != *[Bb]eta* ]] || { echo "::error::beta Xcode selected: $dev"; exit 1; }
       - uses: actions/checkout@v4
         with:
           repository: ${{ env.LUMIERE_REPO }}
