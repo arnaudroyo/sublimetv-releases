@@ -1,8 +1,9 @@
 # Builds every SublimeTV release binary from a lumiere commit and stages them:
 # the public assets in a DRAFT release of this repo, the AAB in a DRAFT Play
-# production release, the IPA on App Store Connect. Never publishes:
-# publishing creates the tag, and the tag is what every non-store install
-# announces as an update. Never rolls out on Play, never submits to Apple.
+# production release, the MSIX in a DRAFT Store submission, the IPA on App
+# Store Connect. Never publishes: publishing creates the tag, and the tag is
+# what every non-store install announces as an update. Never rolls out on
+# Play, never submits to Microsoft or Apple.
 #
 # Lives here rather than in the private lumiere repo because public repos get
 # GitHub-hosted runners for free (macOS included); the private source is
@@ -19,7 +20,9 @@
 # automatic signing creates cloud-managed distribution certificates),
 # PLAY_SERVICE_ACCOUNT_JSON (service account invited in Play Console with
 # release permissions on app.sublimetv), IPA_ARTIFACT_PASSPHRASE (random,
-# encrypts the IPA between the ios and appstore jobs).
+# encrypts the IPA between the ios and appstore jobs), MSSTORE_TENANT_ID,
+# MSSTORE_SELLER_ID, MSSTORE_CLIENT_ID, MSSTORE_CLIENT_SECRET (Entra app with
+# the Developer role in Partner Center).
 
 name: Build release
 run-name: Release ${{ inputs.version }} (${{ inputs.ref }})
@@ -34,7 +37,7 @@ on:
         description: Full 40-char SHA of the lumiere commit to build
         required: true
       stage:
-        description: Stage the release, i.e. GitHub draft, Play draft and App Store Connect upload (off = build and checks only)
+        description: Stage the release, i.e. GitHub, Play and Microsoft Store drafts and App Store Connect upload (off = build and checks only)
         type: boolean
         default: true
 
@@ -335,6 +338,42 @@ jobs:
           releaseName: ${{ inputs.version }}
           track: production
           status: draft
+
+  # A DRAFT Microsoft Store submission: the previous one's listings, prices and
+  # ratings with the new package. Submitting it for certification stays a click
+  # in Partner Center. The CLI deletes a pending, uncommitted submission to make
+  # room for its own; one already in certification makes it fail instead.
+  msstore:
+    needs: [tests, android-tests, windows]
+    if: inputs.stage
+    # The CLI keeps its credentials in the Windows credential store.
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      # Only pubspec.yaml: the CLI recognizes a Flutter project by it, and
+      # publishes the MSIX it finds in --inputDirectory without rebuilding.
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ env.LUMIERE_REPO }}
+          ref: ${{ inputs.ref }}
+          ssh-key: ${{ secrets.LUMIERE_DEPLOY_KEY }}
+          sparse-checkout: pubspec.yaml
+          sparse-checkout-cone-mode: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: store-windows
+          path: dist
+      - uses: microsoft/microsoft-store-apppublisher@v1.4
+      - name: Stage the submission
+        env:
+          MSSTORE_TENANT_ID: ${{ secrets.MSSTORE_TENANT_ID }}
+          MSSTORE_SELLER_ID: ${{ secrets.MSSTORE_SELLER_ID }}
+          MSSTORE_CLIENT_ID: ${{ secrets.MSSTORE_CLIENT_ID }}
+          MSSTORE_CLIENT_SECRET: ${{ secrets.MSSTORE_CLIENT_SECRET }}
+        run: |
+          msstore reconfigure --tenantId "$MSSTORE_TENANT_ID" --sellerId "$MSSTORE_SELLER_ID" \
+            --clientId "$MSSTORE_CLIENT_ID" --clientSecret "$MSSTORE_CLIENT_SECRET"
+          msstore publish "$GITHUB_WORKSPACE" --inputDirectory dist --appId 9PG3SNR3DMMP --noCommit
 
   # The IPA only leaves this job encrypted: before upload it is unencrypted (no
   # FairPlay), and artifacts here are public.
