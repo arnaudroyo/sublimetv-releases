@@ -316,9 +316,11 @@ jobs:
           compression-level: 0
 
   # A DRAFT production release on Play: rolling it out stays a click in Play
-  # Console. Uploading consumes the version code, so only a tested build goes.
+  # Console. After `draft`, so nothing reaches a store unless every build and
+  # test passed: a store keeps a build number once received, and a partial
+  # staging would force a bump to N+1 after the fix.
   play:
-    needs: [tests, android-tests, android]
+    needs: [draft]
     if: inputs.stage
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -344,7 +346,7 @@ jobs:
   # in Partner Center. The CLI deletes a pending, uncommitted submission to make
   # room for its own; one already in certification makes it fail instead.
   msstore:
-    needs: [tests, android-tests, windows]
+    needs: [draft]
     if: inputs.stage
     # The CLI keeps its credentials in the Windows credential store.
     runs-on: windows-latest
@@ -473,9 +475,11 @@ jobs:
         if: always()
         run: rm -rf "$HOME/.appstoreconnect" "$RUNNER_TEMP/ipa" "$RUNNER_TEMP/payload" "$RUNNER_TEMP/Runner.xcarchive"
 
-  # Only a tested build goes to Apple. Never submits for review.
+  # After `draft` like the other stores; `draft` itself does not wait for iOS,
+  # so an Apple-side failure never blocks the site and the other stores. Never
+  # submits for review.
   appstore:
-    needs: [tests, android-tests, ios]
+    needs: [draft, ios]
     if: inputs.stage
     runs-on: macos-15
     timeout-minutes: 30
