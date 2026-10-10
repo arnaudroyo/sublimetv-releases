@@ -46,6 +46,10 @@ env:
   # SHA-256 of the Play upload certificate. A build without the keystore
   # silently falls back to the debug key, which cannot update existing installs.
   UPLOAD_CERT_SHA256: 9670da24b81ebc1add2d742d6c8698a32672fb8b3f983c7b349bcb6cdadf597c
+  # Caches hold downloads only (SDK, pub, Gradle, CocoaPods), never build
+  # outputs: a reused build/ could ship stale Dart code. The default pub key
+  # hashes pubspec.lock, which is not versioned, so it would never refresh:
+  # each flutter-action step keys it on pubspec.yaml instead.
 
 defaults:
   run:
@@ -77,11 +81,13 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
+          cache: gradle
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
           cache: true
+          pub-cache-key: flutter-pub-:os:-:channel:-:version:-:arch:-${{ hashFiles('pubspec.yaml') }}
       - run: flutter pub get
       - run: flutter analyze
       - run: flutter test
@@ -119,11 +125,13 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
+          cache: gradle
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
           cache: true
+          pub-cache-key: flutter-pub-:os:-:channel:-:version:-:arch:-${{ hashFiles('pubspec.yaml') }}
       - run: flutter pub get
       - run: flutter build apk --release
       - run: flutter build appbundle --release
@@ -170,6 +178,7 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
           cache: true
+          pub-cache-key: flutter-pub-:os:-:channel:-:version:-:arch:-${{ hashFiles('pubspec.yaml') }}
       - name: Fetch pinned FFmpeg
         run: pwsh -NoProfile -File windows/fetch_ffmpeg.ps1
       - run: flutter pub get
@@ -239,6 +248,11 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
           cache: true
+          pub-cache-key: flutter-pub-:os:-:channel:-:version:-:arch:-${{ hashFiles('pubspec.yaml') }}
+      - uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/CocoaPods
+          key: cocoapods-${{ hashFiles('macos/Podfile.lock') }}
       - name: Fetch pinned FFmpeg
         run: macos/fetch_ffmpeg.sh
       - run: flutter pub get
