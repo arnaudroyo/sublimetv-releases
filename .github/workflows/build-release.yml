@@ -18,7 +18,8 @@
 # ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_P8 (App Store Connect API key, Admin role:
 # automatic signing creates cloud-managed distribution certificates),
 # PLAY_SERVICE_ACCOUNT_JSON (service account invited in Play Console with
-# release permissions on app.sublimetv).
+# release permissions on app.sublimetv), IPA_ARTIFACT_PASSPHRASE (random,
+# encrypts the IPA between the ios and appstore jobs).
 
 name: Build release
 run-name: Release ${{ inputs.version }} (${{ inputs.ref }})
@@ -335,16 +336,13 @@ jobs:
           track: production
           status: draft
 
-  # The IPA goes straight to App Store Connect and is never an artifact: before
-  # upload it is unencrypted (no FairPlay), and artifacts here are public.
+  # The IPA only leaves this job encrypted: before upload it is unencrypted (no
+  # FairPlay), and artifacts here are public.
   ios:
     # Same Xcode as the dev Mac (27); macos-26 tops out at Xcode 26. Public
     # preview image: switch to the GA label once there is one.
     runs-on: xcode-27
     timeout-minutes: 75
-    permissions:
-      contents: read
-      actions: read
     env:
       ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
       ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
@@ -413,31 +411,60 @@ jobs:
           [[ "$(plutil -extract CFBundleVersion raw "$plist")" == "$build" ]] || { echo "::error::IPA build number mismatch"; exit 1; }
           [[ "$(plutil -extract CFBundleIdentifier raw "$plist")" == "app.sublimetv" ]] || { echo "::error::unexpected bundle id"; exit 1; }
           xcodebuild -version | tee -a "$GITHUB_STEP_SUMMARY"
-      # Only a tested build goes to Apple. Waiting here rather than with
-      # `needs:` keeps the build parallel without handing the IPA to another job.
-      - name: Wait for the test jobs
-        if: inputs.stage
+      # Runs on dry runs too, round trip included, so a broken cipher setup
+      # shows up before a real release depends on it.
+      - name: Encrypt the IPA
         env:
-          GH_TOKEN: ${{ github.token }}
+          IPA_PASSPHRASE: ${{ secrets.IPA_ARTIFACT_PASSPHRASE }}
         run: |
-          for _ in $(seq 1 120); do
-            states="$(gh run view "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" --json jobs \
-              --jq '[.jobs[] | select(.name == "tests" or .name == "android-tests") | .conclusion] | join(" ")')"
-            [[ "$states" == "success success" ]] && exit 0
-            if [[ "$states" =~ (failure|cancelled|skipped|timed_out) ]]; then
-              echo "::error::test jobs did not pass ($states), IPA not uploaded"; exit 1
-            fi
-            sleep 30
-          done
-          echo "::error::test jobs still running after an hour"; exit 1
-      - name: Upload to App Store Connect
+          mkdir -p "$RUNNER_TEMP/sealed"
+          ipa="$(ls "$RUNNER_TEMP"/ipa/*.ipa)"
+          openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt -pass env:IPA_PASSPHRASE \
+            -in "$ipa" -out "$RUNNER_TEMP/sealed/SublimeTV.ipa.enc"
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -pass env:IPA_PASSPHRASE \
+            -in "$RUNNER_TEMP/sealed/SublimeTV.ipa.enc" | cmp - "$ipa"
+      - uses: actions/upload-artifact@v4
         if: inputs.stage
-        run: |
-          xcrun altool --upload-app -t ios -f "$(ls "$RUNNER_TEMP"/ipa/*.ipa)" \
-            --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID"
+        with:
+          name: ios-sealed
+          path: ${{ runner.temp }}/sealed/SublimeTV.ipa.enc
+          retention-days: 1
+          compression-level: 0
       - name: Remove the key and the IPA
         if: always()
         run: rm -rf "$HOME/.appstoreconnect" "$RUNNER_TEMP/ipa" "$RUNNER_TEMP/payload" "$RUNNER_TEMP/Runner.xcarchive"
+
+  # Only a tested build goes to Apple. Never submits for review.
+  appstore:
+    needs: [tests, android-tests, ios]
+    if: inputs.stage
+    runs-on: macos-15
+    timeout-minutes: 30
+    env:
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: ios-sealed
+          path: ${{ runner.temp }}/sealed
+      - name: Decrypt the IPA and write the App Store Connect key
+        env:
+          IPA_PASSPHRASE: ${{ secrets.IPA_ARTIFACT_PASSPHRASE }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -pass env:IPA_PASSPHRASE \
+            -in "$RUNNER_TEMP/sealed/SublimeTV.ipa.enc" -out "$RUNNER_TEMP/SublimeTV.ipa"
+          # altool only looks for the key in this directory.
+          mkdir -p "$HOME/.appstoreconnect/private_keys"
+          printf '%s\n' "$ASC_KEY_P8" > "$HOME/.appstoreconnect/private_keys/AuthKey_$ASC_KEY_ID.p8"
+      - name: Upload to App Store Connect
+        run: |
+          xcrun altool --upload-app -t ios -f "$RUNNER_TEMP/SublimeTV.ipa" \
+            --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID"
+      - name: Remove the key and the IPA
+        if: always()
+        run: rm -rf "$HOME/.appstoreconnect" "$RUNNER_TEMP/SublimeTV.ipa"
 
   draft:
     needs: [tests, android-tests, android, windows, macos]
