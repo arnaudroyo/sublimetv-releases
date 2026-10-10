@@ -1,0 +1,315 @@
+# Builds every SublimeTV release binary from a lumiere commit and stages them
+# in a DRAFT release of this repo. Never publishes: publishing creates the tag,
+# and the tag is what every non-store install announces as an update.
+#
+# Lives here rather than in the private lumiere repo because public repos get
+# GitHub-hosted runners for free (macOS included); the private source is
+# checked out with a read-only deploy key. Logs are public: never echo a secret.
+#
+# Trigger (from the lumiere /release skill):
+#   gh workflow run build-release.yml --repo arnaudroyo/sublimetv-releases \
+#     -f version=X.Y.Z -f ref=<full lumiere SHA>
+# Dry run (build and checks, no draft): add -f stage_draft=false
+#
+# Secrets: LUMIERE_DEPLOY_KEY, DOTENV, ANDROID_KEYSTORE_BASE64,
+# ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_PASSWORD, ANDROID_KEY_ALIAS.
+
+name: Build release
+run-name: Release ${{ inputs.version }} (${{ inputs.ref }})
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version X.Y.Z, must match pubspec.yaml at ref
+        required: true
+      ref:
+        description: Full 40-char SHA of the lumiere commit to build
+        required: true
+      stage_draft:
+        description: Stage the assets in a draft release (off = build and checks only)
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ inputs.version }}
+  cancel-in-progress: false
+
+env:
+  FLUTTER_VERSION: 3.44.0
+  VERSION: ${{ inputs.version }}
+  REF: ${{ inputs.ref }}
+  LUMIERE_REPO: undervalleytech/lumiere
+  # SHA-256 of the Play upload certificate. A build without the keystore
+  # silently falls back to the debug key, which cannot update existing installs.
+  UPLOAD_CERT_SHA256: 9670da24b81ebc1add2d742d6c8698a32672fb8b3f983c7b349bcb6cdadf597c
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  tests:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - name: Validate inputs
+        run: |
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::version must be X.Y.Z"; exit 1; }
+          [[ "$REF" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::ref must be a full commit SHA"; exit 1; }
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ env.LUMIERE_REPO }}
+          ref: ${{ inputs.ref }}
+          ssh-key: ${{ secrets.LUMIERE_DEPLOY_KEY }}
+      - name: Check pubspec version
+        run: |
+          declared="$(grep -E '^version:' pubspec.yaml | sed -E 's/^version:[[:space:]]*//; s/\+.*//' | tr -d '[:space:]')"
+          [[ "$declared" == "$VERSION" ]] || { echo "::error::pubspec.yaml declares $declared, not $VERSION"; exit 1; }
+      - name: Write .env
+        env:
+          DOTENV: ${{ secrets.DOTENV }}
+        run: printf '%s\n' "$DOTENV" > .env
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test
+      - name: Android unit tests
+        working-directory: android
+        shell: cmd
+        run: gradlew.bat :app:testProfileUnitTest
+
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ env.LUMIERE_REPO }}
+          ref: ${{ inputs.ref }}
+          ssh-key: ${{ secrets.LUMIERE_DEPLOY_KEY }}
+      - name: Write .env and signing config
+        env:
+          DOTENV: ${{ secrets.DOTENV }}
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          printf '%s\n' "$DOTENV" > .env
+          printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/upload.jks"
+          {
+            echo "storePassword=$KEYSTORE_PASSWORD"
+            echo "keyPassword=$KEY_PASSWORD"
+            echo "keyAlias=$KEY_ALIAS"
+            echo "storeFile=$RUNNER_TEMP/upload.jks"
+          } > android/key.properties
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: flutter build apk --release
+      - run: flutter build appbundle --release
+      - name: Package and check the upload signature
+        run: |
+          build="$(grep -E '^version:' pubspec.yaml | sed -E 's/.*\+//' | tr -d '[:space:]')"
+          mkdir -p dist
+          cp build/app/outputs/flutter-apk/app-release.apk dist/SublimeTV-android.apk
+          cp build/app/outputs/bundle/release/app-release.aab "dist/SublimeTV-$VERSION-build$build.aab"
+          apksigner="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)/apksigner"
+          apk_cert="$("$apksigner" verify --print-certs dist/SublimeTV-android.apk | grep -m1 'certificate SHA-256 digest' | awk '{print $NF}')"
+          aab_cert="$(keytool -printcert -jarfile "dist/SublimeTV-$VERSION-build$build.aab" | grep -m1 'SHA256:' | awk '{print $NF}' | tr -d ':' | tr 'A-F' 'a-f')"
+          [[ "$apk_cert" == "$UPLOAD_CERT_SHA256" ]] || { echo "::error::APK not signed with the upload key ($apk_cert)"; exit 1; }
+          [[ "$aab_cert" == "$UPLOAD_CERT_SHA256" ]] || { echo "::error::AAB not signed with the upload key ($aab_cert)"; exit 1; }
+          rm -f android/key.properties "$RUNNER_TEMP/upload.jks"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-android
+          path: dist/SublimeTV-android.apk
+          retention-days: 7
+          compression-level: 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: store-android
+          path: dist/*.aab
+          retention-days: 7
+          compression-level: 0
+
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ env.LUMIERE_REPO }}
+          ref: ${{ inputs.ref }}
+          ssh-key: ${{ secrets.LUMIERE_DEPLOY_KEY }}
+      - name: Write .env
+        env:
+          DOTENV: ${{ secrets.DOTENV }}
+        run: printf '%s\n' "$DOTENV" > .env
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - name: Fetch pinned FFmpeg
+        run: pwsh -NoProfile -File windows/fetch_ffmpeg.ps1
+      - run: flutter pub get
+      - run: flutter build windows --release
+      - name: Install Inno Setup
+        run: |
+          if [[ ! -f "/c/Program Files (x86)/Inno Setup 6/ISCC.exe" ]]; then
+            choco install innosetup -y --no-progress
+          fi
+      - name: Installer
+        run: pwsh -NoProfile -File windows/installer/build_installer.ps1
+      - name: Portable zip
+        working-directory: build/windows/x64/runner/Release
+        shell: pwsh
+        run: |
+          # bsdtar, not Compress-Archive: the latter writes backslash separators,
+          # which the ZIP spec forbids.
+          & "$env:SystemRoot\System32\tar.exe" -a -c -f "$env:GITHUB_WORKSPACE\dist\SublimeTV-windows-x64.zip" *
+          if ($LASTEXITCODE -ne 0) { throw "tar failed ($LASTEXITCODE)" }
+      - name: Check the packages
+        run: |
+          [[ "$(head -c 2 dist/SublimeTV-windows-x64-setup.exe)" == "MZ" ]] || { echo "::error::installer is not a PE file"; exit 1; }
+          if /c/Windows/System32/tar.exe -tf dist/SublimeTV-windows-x64.zip | grep -q '\\'; then
+            echo "::error::zip has backslash entries"; exit 1
+          fi
+          /c/Windows/System32/tar.exe -tf dist/SublimeTV-windows-x64.zip | grep -qx 'ffmpeg.exe' || { echo "::error::zip has no ffmpeg.exe"; exit 1; }
+      - name: Microsoft Store package
+        run: |
+          dart run msix:create --store --identity-name Undervalley.SublimeTV \
+            --publisher "CN=C89B19D0-5F66-4535-B2D6-8B8D874D4421" \
+            --publisher-display-name Undervalley
+          cp build/windows/x64/runner/Release/SublimeTV.msix dist/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-windows
+          path: |
+            dist/SublimeTV-windows-x64-setup.exe
+            dist/SublimeTV-windows-x64.zip
+          retention-days: 7
+          compression-level: 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: store-windows
+          path: dist/SublimeTV.msix
+          retention-days: 7
+          compression-level: 0
+
+  macos:
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          # Never a beta Xcode: Apple rejects anything built with one.
+          xcode-version: latest-stable
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ env.LUMIERE_REPO }}
+          ref: ${{ inputs.ref }}
+          ssh-key: ${{ secrets.LUMIERE_DEPLOY_KEY }}
+      - name: Write .env
+        env:
+          DOTENV: ${{ secrets.DOTENV }}
+        run: printf '%s\n' "$DOTENV" > .env
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - name: Fetch pinned FFmpeg
+        run: macos/fetch_ffmpeg.sh
+      - run: flutter pub get
+      - run: flutter build macos --release
+      - name: Disk image
+        timeout-minutes: 15
+        run: macos/installer/build_dmg.sh
+      - name: Check the image
+        run: |
+          app=build/macos/Build/Products/Release/SublimeTV.app
+          archs="$(lipo -archs "$app/Contents/MacOS/SublimeTV")"
+          [[ "$archs" == *arm64* && "$archs" == *x86_64* ]] || { echo "::error::app is not universal ($archs)"; exit 1; }
+          [[ -x "$app/Contents/MacOS/ffmpeg" ]] || { echo "::error::app has no embedded ffmpeg"; exit 1; }
+          [[ "$(tail -c 512 dist/SublimeTV-macos-universal.dmg | head -c 4)" == "koly" ]] || { echo "::error::dmg has no UDIF trailer"; exit 1; }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-macos
+          path: dist/SublimeTV-macos-universal.dmg
+          retention-days: 7
+          compression-level: 0
+
+  draft:
+    needs: [tests, android, windows, macos]
+    if: inputs.stage_draft
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: v${{ inputs.version }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          path: dist
+          merge-multiple: true
+      - name: Check the asset set
+        run: |
+          # Asset names are a contract: the backend proxies /download/* to
+          # releases/latest/download/<these names>, and so does the in-app updater.
+          for asset in SublimeTV-android.apk SublimeTV-windows-x64-setup.exe SublimeTV-windows-x64.zip SublimeTV-macos-universal.dmg; do
+            [[ -s "dist/$asset" ]] || { echo "::error::missing $asset"; exit 1; }
+          done
+          [[ "$(ls dist | wc -l)" -eq 4 ]] || { echo "::error::unexpected files in dist: $(ls dist)"; exit 1; }
+      - name: Create or refresh the draft
+        run: |
+          state="$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft 2>/dev/null || echo absent)"
+          case "$state" in
+            false)
+              echo "::error::$TAG is already published; its assets are live and are not replaced"
+              exit 1 ;;
+            true)
+              gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" --clobber dist/* ;;
+            *)
+              gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --draft \
+                --title "SublimeTV $VERSION" --notes "Notes à rédiger avant publication." dist/* ;;
+          esac
+      - name: Compare local and remote sizes
+        run: |
+          remote="$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[] | "\(.name) \(.size)"')"
+          {
+            echo "### Draft $TAG"
+            echo
+            echo "Built from \`$REF\`."
+            echo
+            echo "| Asset | Size |"
+            echo "|---|---|"
+          } >> "$GITHUB_STEP_SUMMARY"
+          for f in dist/*; do
+            name="$(basename "$f")"; size="$(stat -c %s "$f")"
+            grep -qx "$name $size" <<<"$remote" || { echo "::error::$name: remote size differs from $size"; exit 1; }
+            echo "| $name | $size |" >> "$GITHUB_STEP_SUMMARY"
+          done
