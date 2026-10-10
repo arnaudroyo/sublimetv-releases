@@ -1,6 +1,7 @@
-# Builds every SublimeTV release binary from a lumiere commit and stages them
-# in a DRAFT release of this repo. Never publishes: publishing creates the tag,
-# and the tag is what every non-store install announces as an update.
+# Builds every SublimeTV release binary from a lumiere commit and stages them:
+# the public assets in a DRAFT release of this repo, the IPA on App Store
+# Connect. Never publishes: publishing creates the tag, and the tag is what
+# every non-store install announces as an update. Never submits for review.
 #
 # Lives here rather than in the private lumiere repo because public repos get
 # GitHub-hosted runners for free (macOS included); the private source is
@@ -9,10 +10,12 @@
 # Trigger (from the lumiere /release skill):
 #   gh workflow run build-release.yml --repo arnaudroyo/sublimetv-releases \
 #     -f version=X.Y.Z -f ref=<full lumiere SHA>
-# Dry run (build and checks, no draft): add -f stage_draft=false
+# Dry run (build and checks, nothing staged): add -f stage=false
 #
 # Secrets: LUMIERE_DEPLOY_KEY, DOTENV, ANDROID_KEYSTORE_BASE64,
-# ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_PASSWORD, ANDROID_KEY_ALIAS.
+# ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_PASSWORD, ANDROID_KEY_ALIAS,
+# ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_P8 (App Store Connect API key, Admin role:
+# automatic signing creates cloud-managed distribution certificates).
 
 name: Build release
 run-name: Release ${{ inputs.version }} (${{ inputs.ref }})
@@ -26,8 +29,8 @@ on:
       ref:
         description: Full 40-char SHA of the lumiere commit to build
         required: true
-      stage_draft:
-        description: Stage the assets in a draft release (off = build and checks only)
+      stage:
+        description: Stage the release, i.e. GitHub draft and App Store Connect upload (off = build and checks only)
         type: boolean
         default: true
 
@@ -177,13 +180,13 @@ jobs:
         with:
           name: release-android
           path: dist/SublimeTV-android.apk
-          retention-days: 7
+          retention-days: 1
           compression-level: 0
       - uses: actions/upload-artifact@v4
         with:
           name: store-android
           path: dist/*.aab
-          retention-days: 7
+          retention-days: 1
           compression-level: 0
 
   windows:
@@ -243,13 +246,13 @@ jobs:
           path: |
             dist/SublimeTV-windows-x64-setup.exe
             dist/SublimeTV-windows-x64.zip
-          retention-days: 7
+          retention-days: 1
           compression-level: 0
       - uses: actions/upload-artifact@v4
         with:
           name: store-windows
           path: dist/SublimeTV.msix
-          retention-days: 7
+          retention-days: 1
           compression-level: 0
 
   macos:
@@ -297,12 +300,109 @@ jobs:
         with:
           name: release-macos
           path: dist/SublimeTV-macos-universal.dmg
-          retention-days: 7
+          retention-days: 1
           compression-level: 0
+
+  # The IPA goes straight to App Store Connect and is never an artifact: before
+  # upload it is unencrypted (no FairPlay), and artifacts here are public.
+  ios:
+    # Same Xcode as the dev Mac (27); macos-26 tops out at Xcode 26. Public
+    # preview image: switch to the GA label once there is one.
+    runs-on: xcode-27
+    timeout-minutes: 75
+    permissions:
+      contents: read
+      actions: read
+    env:
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+    steps:
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          # Never a beta Xcode: Apple rejects anything built with one (ITMS-90534).
+          xcode-version: latest-stable
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ env.LUMIERE_REPO }}
+          ref: ${{ inputs.ref }}
+          ssh-key: ${{ secrets.LUMIERE_DEPLOY_KEY }}
+      - name: Write .env and the App Store Connect key
+        env:
+          DOTENV: ${{ secrets.DOTENV }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          printf '%s\n' "$DOTENV" > .env
+          # altool only looks for the key in this directory.
+          mkdir -p "$HOME/.appstoreconnect/private_keys"
+          printf '%s\n' "$ASC_KEY_P8" > "$HOME/.appstoreconnect/private_keys/AuthKey_$ASC_KEY_ID.p8"
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+          pub-cache-key: flutter-pub-:os:-:channel:-:version:-:arch:-${{ hashFiles('pubspec.yaml') }}
+      - uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/CocoaPods
+          key: cocoapods-ios-${{ hashFiles('ios/Podfile.lock') }}
+      - run: flutter pub get
+      # Not `flutter build ipa`: it cannot hand xcodebuild the API key that
+      # automatic signing needs on a machine with no Apple account signed in.
+      - run: flutter build ios --release --config-only
+      - name: Archive and export
+        run: |
+          key="$HOME/.appstoreconnect/private_keys/AuthKey_$ASC_KEY_ID.p8"
+          auth=(-allowProvisioningUpdates -authenticationKeyPath "$key"
+                -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID")
+          xcodebuild -workspace ios/Runner.xcworkspace -scheme Runner -configuration Release \
+            -destination 'generic/platform=iOS' -archivePath "$RUNNER_TEMP/Runner.xcarchive" \
+            "${auth[@]}" archive
+          # Export to a file and upload separately: the direct upload fails on
+          # "Unexpected nil property at path: 'Actor/relationships/providerId'".
+          cp ios/ExportOptions.plist "$RUNNER_TEMP/ExportOptions.plist"
+          plutil -replace destination -string export "$RUNNER_TEMP/ExportOptions.plist"
+          xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/Runner.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" -exportPath "$RUNNER_TEMP/ipa" \
+            "${auth[@]}"
+      - name: Check the IPA
+        run: |
+          build="$(grep -E '^version:' pubspec.yaml | sed -E 's/.*\+//' | tr -d '[:space:]')"
+          ipa="$(ls "$RUNNER_TEMP"/ipa/*.ipa)"
+          unzip -q "$ipa" -d "$RUNNER_TEMP/payload"
+          plist="$(ls -d "$RUNNER_TEMP"/payload/Payload/*.app)/Info.plist"
+          [[ "$(plutil -extract CFBundleShortVersionString raw "$plist")" == "$VERSION" ]] || { echo "::error::IPA version mismatch"; exit 1; }
+          [[ "$(plutil -extract CFBundleVersion raw "$plist")" == "$build" ]] || { echo "::error::IPA build number mismatch"; exit 1; }
+          [[ "$(plutil -extract CFBundleIdentifier raw "$plist")" == "app.sublimetv" ]] || { echo "::error::unexpected bundle id"; exit 1; }
+          xcodebuild -version | tee -a "$GITHUB_STEP_SUMMARY"
+      # Only a tested build goes to Apple. Waiting here rather than with
+      # `needs:` keeps the build parallel without handing the IPA to another job.
+      - name: Wait for the test jobs
+        if: inputs.stage
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for _ in $(seq 1 120); do
+            states="$(gh run view "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" --json jobs \
+              --jq '[.jobs[] | select(.name == "tests" or .name == "android-tests") | .conclusion] | join(" ")')"
+            [[ "$states" == "success success" ]] && exit 0
+            if [[ "$states" =~ (failure|cancelled|skipped|timed_out) ]]; then
+              echo "::error::test jobs did not pass ($states), IPA not uploaded"; exit 1
+            fi
+            sleep 30
+          done
+          echo "::error::test jobs still running after an hour"; exit 1
+      - name: Upload to App Store Connect
+        if: inputs.stage
+        run: |
+          xcrun altool --upload-app -t ios -f "$(ls "$RUNNER_TEMP"/ipa/*.ipa)" \
+            --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID"
+      - name: Remove the key and the IPA
+        if: always()
+        run: rm -rf "$HOME/.appstoreconnect" "$RUNNER_TEMP/ipa" "$RUNNER_TEMP/payload" "$RUNNER_TEMP/Runner.xcarchive"
 
   draft:
     needs: [tests, android-tests, android, windows, macos]
-    if: inputs.stage_draft
+    if: inputs.stage
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
