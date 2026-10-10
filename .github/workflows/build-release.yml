@@ -91,6 +91,8 @@ jobs:
       - run: flutter pub get
       - run: flutter analyze
       - run: flutter test
+      # The Gradle wrapper and local.properties are generated, not versioned.
+      - run: flutter build apk --config-only
       - name: Android unit tests
         working-directory: android
         shell: cmd
