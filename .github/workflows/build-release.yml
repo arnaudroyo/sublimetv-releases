@@ -1,7 +1,8 @@
 # Builds every SublimeTV release binary from a lumiere commit and stages them:
-# the public assets in a DRAFT release of this repo, the IPA on App Store
-# Connect. Never publishes: publishing creates the tag, and the tag is what
-# every non-store install announces as an update. Never submits for review.
+# the public assets in a DRAFT release of this repo, the AAB in a DRAFT Play
+# production release, the IPA on App Store Connect. Never publishes:
+# publishing creates the tag, and the tag is what every non-store install
+# announces as an update. Never rolls out on Play, never submits to Apple.
 #
 # Lives here rather than in the private lumiere repo because public repos get
 # GitHub-hosted runners for free (macOS included); the private source is
@@ -15,7 +16,9 @@
 # Secrets: LUMIERE_DEPLOY_KEY, DOTENV, ANDROID_KEYSTORE_BASE64,
 # ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_PASSWORD, ANDROID_KEY_ALIAS,
 # ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_P8 (App Store Connect API key, Admin role:
-# automatic signing creates cloud-managed distribution certificates).
+# automatic signing creates cloud-managed distribution certificates),
+# PLAY_SERVICE_ACCOUNT_JSON (service account invited in Play Console with
+# release permissions on app.sublimetv).
 
 name: Build release
 run-name: Release ${{ inputs.version }} (${{ inputs.ref }})
@@ -30,7 +33,7 @@ on:
         description: Full 40-char SHA of the lumiere commit to build
         required: true
       stage:
-        description: Stage the release, i.e. GitHub draft and App Store Connect upload (off = build and checks only)
+        description: Stage the release, i.e. GitHub draft, Play draft and App Store Connect upload (off = build and checks only)
         type: boolean
         default: true
 
@@ -307,6 +310,30 @@ jobs:
           path: dist/SublimeTV-macos-universal.dmg
           retention-days: 1
           compression-level: 0
+
+  # A DRAFT production release on Play: rolling it out stays a click in Play
+  # Console. Uploading consumes the version code, so only a tested build goes.
+  play:
+    needs: [tests, android-tests, android]
+    if: inputs.stage
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: store-android
+          path: dist
+      - name: Locate the AAB
+        id: bundle
+        run: echo "aab=$(ls dist/*.aab)" >> "$GITHUB_OUTPUT"
+      - uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: app.sublimetv
+          releaseFiles: ${{ steps.bundle.outputs.aab }}
+          releaseName: ${{ inputs.version }}
+          track: production
+          status: draft
 
   # The IPA goes straight to App Store Connect and is never an artifact: before
   # upload it is unencrypted (no FairPlay), and artifacts here are public.
