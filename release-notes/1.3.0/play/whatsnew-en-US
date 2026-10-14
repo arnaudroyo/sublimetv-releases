@@ -1,0 +1,8 @@
+What's new in 1.3.0:
+• Live: new Discover page, "For you" and "Recently watched" rows
+• Favourites row on Movies and Series
+• Titles in non-Latin scripts are now matched correctly
+• Automatic source switches are announced on screen
+• Playlists: connection errors explained, Retry button
+• + tile to create a profile
+• Six new languages: German, Portuguese, Italian, Turkish, Russian, Arabic

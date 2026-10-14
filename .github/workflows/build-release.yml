@@ -325,6 +325,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: release-notes
       - uses: actions/download-artifact@v4
         with:
           name: store-android
@@ -332,12 +335,27 @@ jobs:
       - name: Locate the AAB
         id: bundle
         run: echo "aab=$(ls dist/*.aab)" >> "$GITHUB_OUTPUT"
+      # Notes are committed to release-notes/X.Y.Z/play/whatsnew-<locale> before
+      # the run. Play refuses more than 500 characters per language, and only
+      # at the very end of the upload, so check here. No folder: the draft
+      # keeps empty notes to fill in Play Console.
+      - name: Locate the release notes
+        id: notes
+        run: |
+          dir="release-notes/$VERSION/play"
+          [[ -d "$dir" ]] || { echo "::warning::no $dir, the Play draft will have empty release notes"; exit 0; }
+          for f in "$dir"/whatsnew-*; do
+            len="$(python3 -c 'import sys; print(len(open(sys.argv[1], encoding="utf-8").read().rstrip("\n")))' "$f")"
+            (( len <= 500 )) || { echo "::error::$f has $len characters, Play allows 500"; exit 1; }
+          done
+          echo "dir=$dir" >> "$GITHUB_OUTPUT"
       - uses: r0adkll/upload-google-play@v1
         with:
           serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
           packageName: app.sublimetv
           releaseFiles: ${{ steps.bundle.outputs.aab }}
           releaseName: ${{ inputs.version }}
+          whatsNewDirectory: ${{ steps.notes.outputs.dir }}
           track: production
           status: draft
 
@@ -376,6 +394,27 @@ jobs:
           msstore reconfigure --tenantId "$MSSTORE_TENANT_ID" --sellerId "$MSSTORE_SELLER_ID" \
             --clientId "$MSSTORE_CLIENT_ID" --clientSecret "$MSSTORE_CLIENT_SECRET"
           msstore publish "$GITHUB_WORKSPACE" --inputDirectory dist --appId 9PG3SNR3DMMP --noCommit
+      # The CLI printed "uploaded" on 1.3.0 yet the draft still held only the
+      # previous package. Record what Partner Center actually has, so the next
+      # run shows whether the new package was ever attached. Informational: the
+      # API shape is unverified, so this never fails the job.
+      - name: Record the packages of the draft
+        continue-on-error: true
+        env:
+          MSSTORE_TENANT_ID: ${{ secrets.MSSTORE_TENANT_ID }}
+          MSSTORE_CLIENT_ID: ${{ secrets.MSSTORE_CLIENT_ID }}
+          MSSTORE_CLIENT_SECRET: ${{ secrets.MSSTORE_CLIENT_SECRET }}
+        run: |
+          token="$(curl -fsS -X POST "https://login.microsoftonline.com/$MSSTORE_TENANT_ID/oauth2/token" \
+            --data-urlencode grant_type=client_credentials --data-urlencode client_id="$MSSTORE_CLIENT_ID" \
+            --data-urlencode client_secret="$MSSTORE_CLIENT_SECRET" \
+            --data-urlencode resource=https://manage.devcenter.microsoft.com | jq -r .access_token)"
+          echo "::add-mask::$token"
+          api=https://manage.devcenter.microsoft.com/v1.0/my/applications/9PG3SNR3DMMP
+          sub="$(curl -fsS -H "Authorization: Bearer $token" "$api" | jq -r .pendingApplicationSubmission.id)"
+          echo "pending submission: $sub"
+          curl -fsS -H "Authorization: Bearer $token" "$api/submissions/$sub" \
+            | jq -r '.applicationPackages[] | "package \(.fileName) version=\(.version) status=\(.fileStatus)"'
 
   # The IPA only leaves this job encrypted: before upload it is unencrypted (no
   # FairPlay), and artifacts here are public.
