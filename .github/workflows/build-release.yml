@@ -201,8 +201,8 @@ jobs:
     timeout-minutes: 60
     env:
       # VS 18 turns the deprecated <experimental/coroutine> header into an error,
-      # which webview_windows still includes.
-      CL: /D_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS
+      # which webview_windows still includes (CMake reads CXXFLAGS; CL breaks its probe).
+      CXXFLAGS: /D_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS
     steps:
       - uses: actions/checkout@v4
         with:
