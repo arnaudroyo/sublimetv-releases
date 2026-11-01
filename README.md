@@ -22,27 +22,78 @@
 
 ---
 
-Ce dépôt héberge les **binaires de la beta SublimeTV** (Windows, Android mobile, Android TV). Le code source reste privé ; voir [releases](../../releases) pour télécharger la dernière version.
+Ce dépôt héberge les **binaires de SublimeTV** (Windows, macOS, Android mobile, Android TV). Le code source reste privé ; voir [releases](../../releases) pour télécharger la dernière version.
 
-## Ce qu'est SublimeTV
+## Votre abonnement IPTV mérite mieux qu'une liste de chaînes
 
-SublimeTV est une **plateforme de lecture**, rien de plus. L'application ne fournit, n'héberge et ne distribue aucun contenu : vous connectez votre propre abonnement IPTV (Xtream ou liste M3U) et SublimeTV se charge de l'expérience, pas du contenu.
+Une playlist IPTV, c'est des milliers de lignes, des catégories illisibles et des doublons partout. SublimeTV en fait ce que vous attendez d'un grand service de streaming : des affiches, des fiches complètes, des recommandations, une reprise de lecture qui vous suit d'un écran à l'autre, et une recherche qui comprend ce que vous avez envie de regarder.
 
-## Fonctionnalités
+Vous gardez votre fournisseur. SublimeTV s'occupe de l'expérience.
 
-- **Recherche par intention (IA)** : décrivez une envie, une humeur, une époque, un acteur, l'IA propose des œuvres réelles et ne garde que celles disponibles dans votre playlist.
-- **Interface premium** : affiches et fiches détaillées enrichies (TMDB), bandes-annonces, distribution.
-- **Profils multiples** : un profil par membre du foyer, avec ses propres favoris, historique et couleur.
-- **Synchronisé partout** : commencez sur la TV, finissez sur le téléphone. Favoris, historique et reprise de lecture suivent automatiquement.
-- **Reprise de lecture** : repartez exactement où vous en étiez, sur n'importe quel appareil.
-- **Appairage TV par QR code** : connectez votre playlist et votre compte depuis le téléphone, aucune saisie à la télécommande.
-- **Envoyer sur la TV** : un contenu trouvé sur le téléphone ou le PC part d'un geste vers l'app SublimeTV déjà ouverte sur votre TV, et reprend à la seconde près.
-- **Cast** : diffusez vers n'importe quel Chromecast ou Google TV.
-- **Enchaînement automatique** des épisodes façon Netflix.
-- **Téléchargement hors ligne** (Windows, Android mobile) : emportez films et épisodes en avion ou dans le train.
-- **Pistes audio et sous-titres** à la carte, y compris celles intégrées au fichier, mémorisées par profil.
-- **Live, films, séries et sport** réunis et organisés, fini les catégories illisibles.
-- Interface disponible en **français, anglais et espagnol**.
+## Dites ce dont vous avez envie. On trouve.
+
+Plus besoin de connaître le titre. Décrivez une humeur, une époque, un acteur (« un thriller psychologique des années 90 », « une comédie légère à regarder en famille », « les meilleurs films de Pierre Niney ») : l'IA propose des œuvres réelles, puis **ne garde que celles que vous pouvez lancer tout de suite** dans votre playlist.
+
+- Un titre proposé est un titre disponible, jamais une liste de films que vous n'avez pas.
+- Votre catalogue ne quitte jamais l'appareil : seule votre phrase est envoyée, ni vos chaînes, ni vos films, ni votre historique.
+- Sur la TV, parlez à la télécommande plutôt que d'épeler lettre par lettre.
+
+## Tout ce qu'un grand player IPTV devrait être
+
+**Une interface digne d'un service de streaming**
+- Affiches riches, fiches détaillées, distribution et bandes-annonces.
+- Un accueil qui se renouvelle chaque semaine : tendances, pépites à ne pas manquer, recommandations « Parce que vous avez regardé… » et « Parce que vous aimez… », toujours limitées à ce que votre playlist contient vraiment.
+- Les doublons du fournisseur sont regroupés en une seule fiche, avec le choix de la version (qualité, langue, sous-titres) et une source par défaut qui privilégie une langue que vous comprenez.
+
+**Live, films, séries et sport au même endroit**
+- Foot, F1, NBA et cricket : les matchs du jour et du lendemain, le Grand Prix séance par séance, les classements, avec leur diffuseur et l'antenne correspondante de votre playlist.
+- Replay de vos chaînes quand votre fournisseur enregistre l'antenne : revoyez le programme en cours depuis le début ou rattrapez ceux des jours passés.
+- Chaînes récentes, et chaîne de démarrage au lancement sur TV.
+
+**Un confort de lecture sans compromis**
+- Reprise de lecture à la seconde près, sur n'importe quel appareil.
+- Épisode suivant lancé automatiquement, façon Netflix.
+- Pistes audio et sous-titres à la carte, y compris ceux intégrés au fichier, mémorisés par profil. VF, VOSTFR, c'est vous qui choisissez.
+- Téléchargement hors ligne sur mobile et PC, pour l'avion et le train.
+- Cast vers tout Chromecast ou Google TV.
+
+**Toute la famille, tous les écrans**
+- Un profil par membre du foyer, avec ses propres favoris, historique, couleur et playlist.
+- Favoris, historique et reprises synchronisés en quelques secondes : commencez sur la TV, finissez sur le téléphone.
+- **Envoyer sur la TV** : un contenu trouvé sur le téléphone part d'un geste vers l'app SublimeTV déjà ouverte dans votre salon, et reprend là où vous en étiez.
+- **Appairage par QR code** : la TV affiche un code, le téléphone le scanne, c'est connecté. Aucun mot de passe à taper à la télécommande.
+- Interface en 9 langues : français, anglais, espagnol, allemand, portugais, italien, turc, russe et arabe.
+
+<p align="center">
+  <img src="https://sublimetv.app/assets/shots/tv-sidebar.webp" width="45%" alt="SublimeTV sur Android TV" />
+  <img src="https://sublimetv.app/assets/shots/mobile-home.webp" width="20%" alt="SublimeTV sur mobile" />
+</p>
+
+## Connectez votre playlist en moins d'une minute
+
+1. **Créez votre compte** SublimeTV.
+2. **Ajoutez votre playlist**, Xtream ou M3U, depuis le téléphone.
+3. **Scannez le QR code** affiché par la TV : profils, favoris et reprises sont déjà là sur chaque écran.
+
+## Free ou Premium
+
+L'essentiel est inclus gratuitement. Premium ajoute le confort pour toute la maison.
+
+| | Free | Premium |
+|---|:---:|:---:|
+| Films, séries, live et replay | ✓ | ✓ |
+| Foot, F1, NBA et cricket | ✓ | ✓ |
+| Fiches détaillées, accueil, tendances et recommandations | ✓ | ✓ |
+| Recherche dans le catalogue | ✓ | ✓ |
+| Synchronisation multi-appareil | ✓ | ✓ |
+| Reprise de lecture et chaînes récentes | | ✓ |
+| Favoris | | ✓ |
+| Recherche par IA | 1 par semaine | 20 par jour |
+| Profils | 1 | jusqu'à 5 |
+| Téléchargement hors ligne | | ✓ |
+| Cast et envoi sur la TV | | ✓ |
+
+**7 jours de Premium offerts à l'inscription**, sans moyen de paiement demandé. À la fin, le compte repasse en Free tout seul : rien à payer, rien à résilier. Les contenus déjà téléchargés restent lisibles.
 
 ## Plateformes
 
@@ -50,26 +101,23 @@ SublimeTV est une **plateforme de lecture**, rien de plus. L'application ne four
 |---|---|
 | **Android TV / Google TV** | Navigation 100 % télécommande, affiches plein écran |
 | **Windows** | Bureau et home cinéma |
-| **Android** (mobile & tablette) | Votre télé dans la poche |
+| **macOS** | Apple Silicon et Intel |
+| **Android** (mobile et tablette) | Votre télé dans la poche |
+| **iPhone, iPad et Apple TV** | Via l'App Store |
 
 Un seul compte, tous vos écrans synchronisés.
 
-<p align="center">
-  <img src="https://sublimetv.app/assets/shots/tv-sidebar.webp" width="45%" alt="SublimeTV sur Android TV" />
-  <img src="https://sublimetv.app/assets/shots/mobile-home.webp" width="20%" alt="SublimeTV sur mobile" />
-</p>
-
 ## Télécharger
 
-- **Android** (mobile, tablette, TV) : `.apk` dans la [dernière release](../../releases/latest)
-- **Windows** : archive `.zip` dans la [dernière release](../../releases/latest)
-- Version beta également disponible via [Google Play (test fermé)](https://play.google.com/store/apps/details?id=app.sublimetv)
+- **Windows** : installeur `.exe` ou archive `.zip` portable dans la [dernière release](../../releases/latest)
+- **macOS** : image disque `.dmg` dans la [dernière release](../../releases/latest)
+- **Android** (mobile, tablette, TV) : `.apk` dans la [dernière release](../../releases/latest), ou [Google Play](https://play.google.com/store/apps/details?id=app.sublimetv)
 
-Sur Android, l'installation de l'APK nécessite d'autoriser l'installation depuis cette source dans les réglages du téléphone.
+Sur Android, l'installation de l'APK nécessite d'autoriser l'installation depuis cette source dans les réglages du téléphone. Sur macOS, l'app n'étant pas encore signée par Apple, faites un clic droit sur l'app puis « Ouvrir » au premier lancement.
 
 ## Important
 
-SublimeTV ne fournit, n'héberge et ne distribue aucun contenu. Vous connectez votre propre abonnement IPTV via une URL que vous seul fournissez et contrôlez ; vous êtes seul responsable des contenus auxquels vous accédez et de la conformité de vos sources avec la loi en vigueur et les droits des ayants droit.
+SublimeTV est une **plateforme de lecture**, rien de plus. L'application ne fournit, n'héberge et ne distribue aucun contenu. Vous connectez votre propre abonnement IPTV via une URL que vous seul fournissez et contrôlez ; vous êtes seul responsable des contenus auxquels vous accédez et de la conformité de vos sources avec la loi en vigueur et les droits des ayants droit.
 
 ---
 
