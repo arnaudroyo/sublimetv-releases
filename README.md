@@ -17,7 +17,7 @@
 </p>
 
 <p align="center">
-  <img src="https://sublimetv.app/assets/shots/desktop-home.webp" width="70%" alt="Accueil SublimeTV sur ordinateur" />
+  <img src="assets/hero-tv.jpg" width="85%" alt="SublimeTV sur Android TV : accueil avec les films tendance" />
 </p>
 
 ---
@@ -38,6 +38,10 @@ Plus besoin de connaître le titre. Décrivez une humeur, une époque, un acteur
 - Votre catalogue ne quitte jamais l'appareil : seule votre phrase est envoyée, ni vos chaînes, ni vos films, ni votre historique.
 - Sur la TV, parlez à la télécommande plutôt que d'épeler lettre par lettre.
 
+<p align="center">
+  <img src="assets/ai-search-tv.jpg" width="85%" alt="Recherche par IA sur Android TV" />
+</p>
+
 ## Tout ce qu'un grand player IPTV devrait être
 
 **Une interface digne d'un service de streaming**
@@ -49,6 +53,10 @@ Plus besoin de connaître le titre. Décrivez une humeur, une époque, un acteur
 - Foot, F1, NBA et cricket : les matchs du jour et du lendemain, le Grand Prix séance par séance, les classements, avec leur diffuseur et l'antenne correspondante de votre playlist.
 - Replay de vos chaînes quand votre fournisseur enregistre l'antenne : revoyez le programme en cours depuis le début ou rattrapez ceux des jours passés.
 - Chaînes récentes, et chaîne de démarrage au lancement sur TV.
+
+<p align="center">
+  <img src="assets/live-tv.jpg" width="85%" alt="TV en direct et matchs du jour" />
+</p>
 
 **Un confort de lecture sans compromis**
 - Reprise de lecture à la seconde près, sur n'importe quel appareil.
@@ -65,8 +73,13 @@ Plus besoin de connaître le titre. Décrivez une humeur, une époque, un acteur
 - Interface en 9 langues : français, anglais, espagnol, allemand, portugais, italien, turc, russe et arabe.
 
 <p align="center">
-  <img src="https://sublimetv.app/assets/shots/tv-sidebar.webp" width="45%" alt="SublimeTV sur Android TV" />
-  <img src="https://sublimetv.app/assets/shots/mobile-home.webp" width="20%" alt="SublimeTV sur mobile" />
+  <img src="assets/send-to-tv.jpg" width="85%" alt="Envoyer un film du téléphone vers la TV" />
+</p>
+
+<p align="center">
+  <img src="assets/mobile-home.jpg" width="24%" alt="Accueil sur mobile" />
+  <img src="assets/mobile-ai-search.jpg" width="24%" alt="Recherche par IA sur mobile" />
+  <img src="assets/mobile-profiles.jpg" width="24%" alt="Un profil par membre du foyer" />
 </p>
 
 ## Connectez votre playlist en moins d'une minute
@@ -74,6 +87,10 @@ Plus besoin de connaître le titre. Décrivez une humeur, une époque, un acteur
 1. **Créez votre compte** SublimeTV.
 2. **Ajoutez votre playlist**, Xtream ou M3U, depuis le téléphone.
 3. **Scannez le QR code** affiché par la TV : profils, favoris et reprises sont déjà là sur chaque écran.
+
+<p align="center">
+  <img src="assets/qr-pairing-tv.jpg" width="85%" alt="Appairage de la TV par QR code" />
+</p>
 
 ## Free ou Premium
 
