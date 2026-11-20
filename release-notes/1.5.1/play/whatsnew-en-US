@@ -1,9 +1,9 @@
-What's new in 1.5.1:
-• New player controls, buffered range shown
-• Phone: fullscreen when turned sideways, audio with the screen locked (Premium)
-• TV: picture zoom, zap live channels with up/down
-• PC: no black bars, mouse zoom
-• Pick episodes to download
-• Pin or hide a live channel in its category
-• Startup channel on phone and PC
-• Fewer sync and refresh problems
+1.5.1
+• Redesigned player: the bar shows what is already loaded, menus open without covering the picture
+• Phone: turn it for full screen, lock it, the sound keeps playing (Premium)
+• Choose the episodes to download, or a whole season
+• Live: pin or hide a channel within its category
+• TV: picture zoom up to 140%, zapping with up and down
+• PC: black bars baked into the movie are cropped
+• Your favourite channel from the moment you open the app, on phone and PC too
+• Also: the channel restarts by itself when the stream drops, playlist carried over to all your devices, detail page tinted with the poster's colours

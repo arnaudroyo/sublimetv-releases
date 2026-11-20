@@ -1,8 +1,8 @@
-What's new in 1.3.0:
-• Live: new Discover page, "For you" and "Recently watched" rows
+1.3.0
+• Live opens on a Discovery page: your favourites, what is on now, the popular channels of your country
+• The app now speaks German, Portuguese, Italian, Turkish, Russian and Arabic too
+• Android TV: your movies and series in progress on the TV home screen (Premium)
 • Favourites row on Movies and Series
-• Titles in non-Latin scripts are now matched correctly
-• Automatic source switches are announced on screen
-• Playlists: connection errors explained, Retry button
-• + tile to create a profile
-• Six new languages: German, Portuguese, Italian, Turkish, Russian, Arabic
+• Arabic and Cyrillic titles finally recognised
+• Automatic source switch: the app tells you which one it chose
+• Also: sources ranked by what your TV can play, playlist errors explained with a Retry button, + tile to create a profile
